@@ -306,7 +306,10 @@ class Trainer(TrainerBase):
 
             train_loss += loss.item()
 
-            batch_grad_norm = self.rescale_gradients()
+            # batch_grad_norm = self.rescale_gradients()
+            if self._grad_clipping:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(),
+                                               self._grad_clipping)
 
             # This does nothing if batch_num_total is None or you are using an
             # LRScheduler which doesn't update per batch.
@@ -341,7 +344,7 @@ class Trainer(TrainerBase):
 
             # Log parameter values to Tensorboard
             if self._tensorboard.should_log_this_batch():
-                self._tensorboard.log_parameter_and_gradient_statistics(self.model, batch_grad_norm)
+                # self._tensorboard.log_parameter_and_gradient_statistics(self.model, batch_grad_norm)
                 self._tensorboard.log_learning_rates(self.model, self.optimizer)
 
                 self._tensorboard.add_train_scalar("loss/loss_train", metrics["loss"])
@@ -437,7 +440,7 @@ class Trainer(TrainerBase):
                                      "a different serialization directory or delete the existing serialization "
                                      "directory?")
 
-        training_util.enable_gradient_clipping(self.model, self._grad_clipping)
+        # training_util.enable_gradient_clipping(self.model, self._grad_clipping)
 
         logger.info("Beginning training.")
 
