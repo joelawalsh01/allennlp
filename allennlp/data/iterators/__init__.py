@@ -9,3 +9,4 @@ from allennlp.data.iterators.bucket_iterator import BucketIterator
 from allennlp.data.iterators.homogeneous_batch_iterator import HomogeneousBatchIterator
 from allennlp.data.iterators.language_modeling_iterator import LanguageModelingIterator
 from allennlp.data.iterators.multiprocess_iterator import MultiprocessIterator
+from allennlp.data.iterators.same_language_iterator import SameLanguageIterator
