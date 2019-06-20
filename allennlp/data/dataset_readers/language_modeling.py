@@ -51,8 +51,9 @@ class LanguageModelingReader(DatasetReader):
                  tokenizer: Tokenizer = None,
                  token_indexers: Dict[str, TokenIndexer] = None,
                  start_tokens: List[str] = None,
-                 end_tokens: List[str] = ["</S>"]) -> None:
-        super().__init__(lazy=False)
+                 end_tokens: List[str] = ["</S>"],
+                 lazy: bool = False) -> None:
+        super().__init__(lazy)
         self._batch_size = batch_size
         if truncated_bptt_size < 2:
             raise ConfigurationError("truncated_bptt_size cannot be less than 2.")
