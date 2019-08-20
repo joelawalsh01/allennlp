@@ -1,3 +1,4 @@
+from typing import Any
 import logging
 
 import torch
@@ -31,15 +32,12 @@ class DropConnect(torch.nn.Module):
         List of target module weights to apply dropout to.
     dropout : float
         Dropout rate.
-    variational : False
-        Whether to apply variational dropout.
     """
-    def __init__(self, module, weights, dropout=0, variational=False):
+    def __init__(self, module, weights, dropout=0, variational=False) -> None:
         super(DropConnect, self).__init__()
         self._module = module
         self._weights = weights
         self._dropout = dropout
-        self._variational = variational
         self._setup()
 
     @staticmethod
@@ -65,25 +63,14 @@ class DropConnect(torch.nn.Module):
             del self.module._parameters[weight]
             self.module.register_parameter(weight + '_raw', torch.nn.Parameter(weight_tensor.data))
 
-    def _setweights(self):
+    def _setweights(self) -> None:
         for weight in self.weights:
             raw_weight_tensor = getattr(self.module, weight + '_raw')
-            if self.variational:
-                # TODO: @rloganiv. This probably assumes that sequence dim is the first dim (as it
-                # is in Salesforce Research's original codebase), and should probably be made the
-                # second dim instead.
-                mask = torch.autograd.Variable(torch.ones(raw_weight_tensor.size(0), 1))
-                if raw_weight_tensor.is_cuda:
-                    mask = mask.cuda()
-                mask = F.dropout(mask, p=self.dropout, training=True)
-                weight_tensor = mask.expand_as(raw_weight_tensor) * raw_weight_tensor
-            else:
-                weight_tensor = torch.nn.functional.dropout(raw_weight_tensor,
-                                                            p=self.dropout,
-                                                            training=self.training)
+            weight_tensor = torch.nn.functional.dropout(raw_weight_tensor,
+                                                        p=self.dropout,
+                                                        training=self.training)
             setattr(self.module, weight, torch.nn.Parameter(weight_tensor))
 
-    def forward(self, *args, **kwargs):
+    def forward(self, *args, **kwargs) -> Any:  # TODO: @rloganiv. Not sure what right return type is...
         self._setweights()
         return self._module.forward(*args, **kwargs)
-
