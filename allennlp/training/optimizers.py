@@ -18,7 +18,8 @@ The available optimizers are
 import logging
 import re
 import math
-from typing import List, Any, Dict
+from copy import deepcopy
+from typing import List, Any, Dict, Iterable
 
 import torch
 from pytorch_pretrained_bert.optimization import BertAdam
@@ -280,3 +281,84 @@ class DenseSparseAdam(torch.optim.Optimizer):
                     p.data.addcdiv_(-step_size, exp_avg, denom)
 
         return loss
+
+
+@Optimizer.register('nt-asgd')
+class NtAsgdOptimizer(Optimizer):
+    """
+    Non-monotonically triggered ASGD optimizer from:
+
+        https://arxiv.org/abs/1708.02182
+
+    This optimizer should be used in conjunction with the (TODO: INSERT NAME) NT-ASGD Callback in
+    order to trigger the switch to ASGD. Otherwise it is equivalent to the SGD optimizer. The
+    switch to ASGD is triggered once non_monotone_interval iterations have occured AND the
+    current training loss is worse than the best loss observed in the previoue
+    non_monotone_interval iterations.
+
+    Parameters
+    ==========
+    params : ``Iterable[torch.nn.Parameter]``
+        The parameters to optimize.
+    learning_rate : ``float``
+        The learning rate.
+    non_monotone_interval : ``int``
+        The minimum number of training iterations that must occur before possibly switching to
+        ASGD, as well as the number of previous loss measurements to compare to the current loss.
+    sgd_kwargs : ``Dict[str, Any]``
+        Arguments to pass to SGD optimizer. (Default: {})
+    asgd_kwargs : ``Dict[str, Any]``
+        Arguments to pass to ASGD optimizer. (Default: {})
+    """
+    def __init__(self,
+                 params: Iterable[torch.nn.Parameter],
+                 learning_rate: float,
+                 non_monotone_interval: int,
+                 sgd_kwargs: Dict[str, Any] = {},
+                 asgd_kwargs: Dict[str, Any] = {}) -> None:
+        self._sgd_optimizer = torch.otpim.SGD(params, **sgd_kwargs)
+        self._asgd_optimizer = torch.optim.ASGD(params, **asgd_kwargs)
+        self.triggered = False
+
+    def zero_grad(self) -> None:
+        if self.triggered:
+            self._asgd_optimizer.zero_grad()
+        else:
+            self._sgd_optimizer.zero_grad()
+
+    def step(self, closure) -> None:
+        if self.triggered:
+            self._asgd_optimizer.step(closure)
+        else:
+            self._sgd_optimizer.step(closure)
+
+    def __getstate__(self) -> Dict[str, Any]:
+        return {
+                'tiggered': self.triggered,
+                '_sgd_optimizer': self._sgd_optimizer,
+                '_asgd_optimizer': self._asgd_optimizer
+        }
+
+    def __setstate__(self, state) -> None:
+        self.__dict__.update(state)
+
+    def __repr__(self) -> str:
+        format_string = 'NtAsgdOptimizer(triggered=%s, sgd_optimizer=%s, asgd_optimizer=%s)'
+        return format_string % (self.triggered, self._sgd_optimizer, self._asgd_optimizer)
+
+    def state_dict(self) -> Dict[str, Any]:
+        return {
+                'triggered': self.triggered,
+                'sgd_state_dict': self._sgd_optimizer.state_dict(),
+                'asgd_state_dict': self._asgd_optimizer.state_dict()
+        }
+
+    def load_state_dict(self, state_dict) -> None:
+        state_dict = deepcopy(state_dict)
+        self.triggered = state_dict['triggered']
+        self._sgd_optimizer.load_state_dict(state_dict['sgd_state_dict'])
+        self._asgd_optimizer.load_state_dict(state_dict['asgd_state_dict'])
+
+    def add_param_group(self, param_group) -> None:
+        self._sgd_optimizer.add_param_group(param_group)
+        self._asgd_optimizer.add_param_group(param_group)
